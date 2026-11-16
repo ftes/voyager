@@ -7,6 +7,7 @@ defmodule Voyager.MixProject do
       version: "0.3.0-dev",
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
+      test_paths: test_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
@@ -28,10 +29,14 @@ defmodule Voyager.MixProject do
   end
 
   def cli do
-    [preferred_envs: [precommit: :test, e2e: :e2e, "e2e.setup": :e2e]]
+    [preferred_envs: [precommit: :test, e2e: :e2e, "e2e.pw": :e2e, "e2e.setup": :e2e]]
   end
 
+  defp test_paths(:e2e), do: ["e2e_pw"]
+  defp test_paths(_), do: ["test"]
+
   defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(:e2e), do: ["lib", "e2e_pw/support"]
   defp elixirc_paths(_), do: ["lib"]
 
   defp deps do
@@ -55,6 +60,7 @@ defmodule Voyager.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:mox, "~> 1.2", only: :test},
+      {:playwright, "~> 1.65.0-rc.1", hex: :playwright_ex, only: [:test, :e2e]},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:live_debugger, "~> 1.0", only: [:dev]},
@@ -102,6 +108,7 @@ defmodule Voyager.MixProject do
         "ecto.reset",
         "cmd bash e2e/run.sh"
       ],
+      "e2e.pw": ["ecto.reset", "test --no-start --seed 0"],
       precommit: [
         tauri_check_version_cmd(),
         elixirkit_check_rev_cmd(),
