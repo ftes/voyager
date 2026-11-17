@@ -60,7 +60,7 @@ defmodule Voyager.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:mox, "~> 1.2", only: :test},
-      {:playwright, "~> 1.65.0-rc.1", hex: :playwright_ex, only: [:test, :e2e]},
+      {:playwright, github: "ftes/playwright_ex", ref: "0217c3445a6845750cdd2a9ce0355588b0147356", only: [:test, :e2e]},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:live_debugger, "~> 1.0", only: [:dev]},

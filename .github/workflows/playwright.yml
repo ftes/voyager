@@ -61,10 +61,10 @@ jobs:
           path: |
             ~/.cache/ms-playwright
             ~/.cache/playwright
-          key: ${{ runner.os }}-playwright-ex-${{ hashFiles('mix.lock') }}
+          key: ${{ runner.os }}-playwright-ex-1.65.1-0217c34-${{ hashFiles('mix.lock') }}
 
       - name: Install Playwright browsers
-        run: mix playwright.install -- chromium firefox --with-deps
+        run: mix playwright.install chromium firefox --with-deps
 
       - name: Setup and build assets
         run: mix assets.setup && mix assets.deploy
