@@ -5,8 +5,7 @@ defmodule Voyager.E2E.RecentConnectionsTest do
 
   # test.describe.configure({ mode: 'serial' }): in order under `--seed 0`.
   setup_all %{browser: browser} do
-    # A context outside a test gets no defaults, so the base URL is explicit.
-    context = Browser.new_context!(browser, base_url: base_url())
+    context = Browser.new_context!(browser)
     page = BrowserContext.new_page!(context)
     ensure_connected(page)
     BrowserContext.close!(context)
