@@ -1,5 +1,8 @@
 defmodule Voyager.E2E.SupervisionTreeTest do
-  use Voyager.E2E.Case, async: false, parameterize: Voyager.E2E.Case.projects()
+  use Voyager.E2E.Case,
+    async: true,
+    group: :supervision_tree_spec,
+    parameterize: Voyager.E2E.Case.projects()
 
   import Voyager.E2E.TreeHelpers
 
@@ -237,7 +240,10 @@ end
 #     wholesale by raising the walk depth;
 #   * order: collapse branch A first then B, vs. B first then A.
 defmodule Voyager.E2E.SupervisionTreeRelationEdgeTest do
-  use Voyager.E2E.Case, async: false, parameterize: Voyager.E2E.Case.projects()
+  use Voyager.E2E.Case,
+    async: true,
+    group: :supervision_tree_spec,
+    parameterize: Voyager.E2E.Case.projects()
 
   import Voyager.E2E.TreeHelpers
 

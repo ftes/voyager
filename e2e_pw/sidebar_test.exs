@@ -1,5 +1,5 @@
 defmodule Voyager.E2E.SidebarTest do
-  use Voyager.E2E.Case, async: false, parameterize: Voyager.E2E.Case.projects()
+  use Voyager.E2E.Case, async: true, parameterize: Voyager.E2E.Case.projects()
 
   alias Playwright.Keyboard
 

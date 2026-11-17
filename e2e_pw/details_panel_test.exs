@@ -1,5 +1,8 @@
 defmodule Voyager.E2E.DetailsPanelTest do
-  use Voyager.E2E.Case, async: false, parameterize: Voyager.E2E.Case.projects()
+  use Voyager.E2E.Case,
+    async: true,
+    group: :details_panel_spec,
+    parameterize: Voyager.E2E.Case.projects()
 
   import Voyager.E2E.TreeHelpers
 
@@ -77,7 +80,10 @@ defmodule Voyager.E2E.DetailsPanelTest do
 end
 
 defmodule Voyager.E2E.DetailsPanelRelationOnlyLinkTest do
-  use Voyager.E2E.Case, async: false, parameterize: Voyager.E2E.Case.projects()
+  use Voyager.E2E.Case,
+    async: true,
+    group: :details_panel_spec,
+    parameterize: Voyager.E2E.Case.projects()
 
   import Voyager.E2E.TreeHelpers
 
