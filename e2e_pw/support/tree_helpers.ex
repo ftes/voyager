@@ -12,7 +12,11 @@ defmodule Voyager.E2E.TreeHelpers do
   result term, e.g. rpc("mock_app_ctl add_child [mock_dyn_sup_a, tmp_a1]").
   """
   def rpc(mfa) do
-    {out, 0} = System.cmd("erl_call", ["-name", node_name(), "-c", cookie(), "-a", mfa])
+    {out, 0} =
+      System.cmd("erl_call", ["-name", node_name(), "-c", cookie(), "-a", mfa],
+        stderr_to_stdout: true
+      )
+
     String.trim(out)
   end
 
