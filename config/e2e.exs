@@ -25,3 +25,10 @@ config :voyager, :rate_limiter_config, %{
 
 config :logger, level: :warning
 config :phoenix, :plug_init_mode, :runtime
+
+config :playwright, :test,
+  context_options: [base_url: "http://localhost:4001"],
+  trace: :retain_on_failure
+
+# playwright.config.ts: `workers: process.env.CI ? 4 : undefined`.
+if System.get_env("CI"), do: config(:playwright, :test, workers: 4)
