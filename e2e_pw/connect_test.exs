@@ -1,7 +1,7 @@
 defmodule Voyager.E2E.ConnectTest do
   use Voyager.E2E.Case,
     async: false,
-    parameterize: Voyager.E2E.Case.projects([:chromium])
+    parameterize: Voyager.E2E.Case.projects(["Desktop Chrome"])
 
   # test.describe.serial: ExUnit runs the tests in order under `--seed 0`.
   describe "direct connect" do

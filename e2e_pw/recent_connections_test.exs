@@ -1,8 +1,6 @@
 defmodule Voyager.E2E.RecentConnectionsTest do
   use Voyager.E2E.Case, async: false, parameterize: Voyager.E2E.Case.projects()
 
-  alias Playwright.{Browser, BrowserContext}
-
   # test.describe.configure({ mode: 'serial' }): in order under `--seed 0`.
   setup_all %{browser: browser} do
     context = Browser.new_context!(browser)

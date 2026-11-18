@@ -1,7 +1,7 @@
 defmodule Voyager.E2E.UnreadableSecretsTest do
   use Voyager.E2E.Case,
     async: false,
-    parameterize: Voyager.E2E.Case.projects([:chromium])
+    parameterize: Voyager.E2E.Case.projects(["Desktop Chrome"])
 
   @db_path Path.expand("../priv/db/voyager_e2e.db", __DIR__)
   @unreadable_node "unreadable@127.0.0.1"
@@ -31,7 +31,10 @@ defmodule Voyager.E2E.UnreadableSecretsTest do
               datetime('now'), datetime('now'), datetime('now'))
       """)
 
-      on_exit(fn -> run_sql("DELETE FROM connections WHERE node_name = '#{@unreadable_node}'") end)
+      on_exit(fn ->
+        run_sql("DELETE FROM connections WHERE node_name = '#{@unreadable_node}'")
+      end)
+
       :ok
     end
 

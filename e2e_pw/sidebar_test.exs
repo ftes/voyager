@@ -1,8 +1,6 @@
 defmodule Voyager.E2E.SidebarTest do
   use Voyager.E2E.Case, async: true, parameterize: Voyager.E2E.Case.projects()
 
-  alias Playwright.Keyboard
-
   @sidebar "#app-sidebar"
 
   describe "Sidebar" do
