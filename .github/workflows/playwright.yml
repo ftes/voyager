@@ -20,11 +20,18 @@ concurrency:
 
 jobs:
   e2e:
-    name: e2e
+    name: e2e (${{ matrix.browser }})
     runs-on: ubuntu-24.04
+
+    # One project per run until Elixir 1.21: elixir-lang/elixir#15820
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
 
     env:
       MIX_ENV: "e2e"
+      E2E_BROWSER: ${{ matrix.browser }}
 
     steps:
       - uses: actions/checkout@v7
@@ -32,16 +39,6 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: .tool-versions
-          cache: "npm"
-          cache-dependency-path: "./e2e/package-lock.json"
-
-      - name: Install Node dependencies
-        working-directory: ./e2e
-        run: npm ci
-
-      - name: Check prettier
-        working-directory: ./e2e
-        run: npx prettier . --check
 
       - name: Set up Elixir
         id: beam
@@ -67,29 +64,39 @@ jobs:
 
       - name: Cache Playwright browsers
         uses: actions/cache@v6
-        id: playwright-cache
         with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('e2e/package-lock.json') }}
+          path: |
+            ~/.cache/ms-playwright
+            ~/.cache/playwright
+          key: ${{ runner.os }}-playwright-ex-${{ matrix.browser }}-${{ hashFiles('mix.lock') }}
 
       - name: Install Playwright browsers
-        working-directory: ./e2e
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install
-
-      - name: Install Playwright OS dependencies
-        working-directory: ./e2e
-        run: npx playwright install-deps
+        run: mix playwright.install ${{ matrix.browser }} --with-deps
 
       - name: Setup and build assets
         run: mix assets.setup && mix assets.deploy
 
       - name: Run e2e tests
-        run: mix e2e
+        shell: bash
+        run: |
+          # Both runs annotate: a test passing on the rerun is flaky.
+          f="--formatter ExUnit.CLIFormatter --formatter Playwright.Test.GitHubFormatter"
+          # A rerun that finds no failures after a failed run must fail the job.
+          retry() {
+            mix e2e --failed $f 2>&1 | tee retry.log; s=${PIPESTATUS[0]}
+            if grep -q "^There are no tests to run" retry.log; then
+              echo "::error::mix e2e --failed found no failures to rerun after a failed run"; return 1
+            fi
+            return $s
+          }
+          mix e2e $f \
+            || { [ $? -eq 2 ] && retry; } \
+            || { [ $? -eq 2 ] && retry; }
 
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report
-          path: e2e/playwright-report/
+          name: test-results-${{ matrix.browser }}
+          path: test-results/
           retention-days: 7
+          if-no-files-found: ignore
