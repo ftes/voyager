@@ -2,107 +2,57 @@
 #
 # Benchmark e2e test flakiness.
 #
-# Runs the full Playwright suite N times, each time with --retries so Playwright
-# classifies tests that fail-then-pass as "flaky". Per run it emits:
-#   - a JSON report  (run-XXX.json) -> aggregated into a per-test flakiness report
-#   - a blob report  (blobs/run-XXX.zip) -> merged into one browsable HTML report
-#                                            that embeds traces of failed tests
-#   - a raw log      (run-XXX.log)  -> stdout/stderr of that run for debugging
+# Runs the whole suite RUNS times; within a run, failed tests are rerun up to RETRIES times
+# (`mix e2e --failed`), so a test that fails and then passes counts as flaky. Voyager.E2E.
+# FlakinessFormatter logs every attempt to flakiness-results/run-XXX.jsonl, and
+# dev/aggregate_e2e_flakiness.exs turns the logs into summary.txt and summary.json (and, in CI, a
+# job summary and annotations). If a test's failures over the batch exceed THRESHOLD the
+# script exits non-zero, so the CI job fails; otherwise it exits 0.
 #
-# After all runs it merges the blobs into flakiness-results/html-report/ and runs
-# the aggregator, which writes summary.txt / summary.json and (in CI) a job
-# summary + annotations. If any test's failure count exceeds THRESHOLD the final
-# aggregation exits non-zero so the CI job fails (and GitHub notifies); otherwise
-# it exits 0 and the benchmark passes silently.
+# The suite shares one node and one app, so runs are strictly sequential. A failing run
+# never aborts the batch.
 #
-# The suite cannot be parallelized (project dependency chain + shared node state),
-# so runs are strictly sequential. A fresh mock node is started per run for
-# isolated, comparable state. A failing suite never aborts the batch.
-#
-# Usage:
-#   ./bench-flakiness.sh [RUNS] [RETRIES] [THRESHOLD]
-#
-#   RUNS       how many times to run the full suite     (default 20)
-#   RETRIES    Playwright --retries per run              (default 2)
-#   THRESHOLD  max allowed failures (flaky+fail) per     (default $FLAKINESS_THRESHOLD or 2)
-#              test across the whole batch before the
-#              benchmark is considered failed
-#
-# Example:
-#   ./bench-flakiness.sh 30 2 2
-#
+# Usage: e2e/bench-flakiness.sh [RUNS] [RETRIES] [THRESHOLD]
+#   RUNS       how many times to run the suite          (default 20)
+#   RETRIES    reruns of the failed tests per run       (default 2)
+#   THRESHOLD  max failures per test over the batch     (default $FLAKINESS_THRESHOLD or 2)
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR"
+cd "$SCRIPT_DIR/.."
 
 RUNS="${1:-20}"
 RETRIES="${2:-2}"
 THRESHOLD="${3:-${FLAKINESS_THRESHOLD:-2}}"
-
 RESULTS_DIR="$SCRIPT_DIR/flakiness-results"
-BLOBS_DIR="$RESULTS_DIR/blobs"
-HTML_DIR="$RESULTS_DIR/html-report"
+FORMATTERS=(--formatter ExUnit.CLIFormatter --formatter Voyager.E2E.FlakinessFormatter)
 
 rm -rf "$RESULTS_DIR"
-mkdir -p "$BLOBS_DIR"
-
-# Always leave the machine clean, even on Ctrl-C.
-trap 'bash "$SCRIPT_DIR/node.sh" stop >/dev/null 2>&1 || true' EXIT
+mkdir -p "$RESULTS_DIR"
 
 echo "Benchmarking e2e flakiness: $RUNS run(s) x (1 attempt + $RETRIES retries), threshold=$THRESHOLD"
-echo "Results -> $RESULTS_DIR"
 
 for i in $(seq 1 "$RUNS"); do
   printf '\n=== Run %d/%d ===\n' "$i" "$RUNS"
   idx="$(printf '%03d' "$i")"
-  run_json="$RESULTS_DIR/run-$idx.json"
-  run_log="$RESULTS_DIR/run-$idx.log"
-  run_blob="$BLOBS_DIR/run-$idx.zip"
+  export FLAKINESS_LOG="$RESULTS_DIR/run-$idx.jsonl"
 
-  # Fresh target node each run so state mutations don't leak between runs.
-  bash "$SCRIPT_DIR/node.sh" start >/dev/null 2>&1
+  # `mix e2e` resets the database and starts fresh target nodes, so runs don't leak state.
+  FLAKINESS_ATTEMPT=1 mix e2e "${FORMATTERS[@]}" 2>&1 | tee "$RESULTS_DIR/run-$idx.log"
+  rc="${PIPESTATUS[0]}"
 
-  # blob  -> rich, mergeable report; embeds traces of failed tests
-  # json  -> machine report consumed by aggregate-flakiness.mjs
-  # Phoenix is started/reused by Playwright's webServer config.
-  # `|| true` keeps a failing suite from killing the batch — a fail is data.
-  PLAYWRIGHT_JSON_OUTPUT_FILE="$run_json" \
-  PLAYWRIGHT_BLOB_OUTPUT_FILE="$run_blob" \
-    npx playwright test --quiet --retries="$RETRIES" --reporter=blob,json \
-    2>&1 | tee "$run_log" || true
+  attempt=1
+  while [ "$rc" -eq 2 ] && [ "$attempt" -le "$RETRIES" ]; do
+    attempt=$((attempt + 1))
+    FLAKINESS_ATTEMPT="$attempt" mix e2e --failed "${FORMATTERS[@]}" 2>&1 | tee -a "$RESULTS_DIR/run-$idx.log"
+    rc="${PIPESTATUS[0]}"
+  done
 
-  bash "$SCRIPT_DIR/node.sh" stop >/dev/null 2>&1
-
-  if [ -f "$run_json" ]; then
-    echo "report: $run_json"
-    node "$SCRIPT_DIR/aggregate-flakiness.mjs" "$RESULTS_DIR"
-  else
-    echo "  WARNING: no JSON report produced (see $run_log)"
-  fi
+  [ -s "$FLAKINESS_LOG" ] || echo "  WARNING: no attempt log produced (see $RESULTS_DIR/run-$idx.log)"
+  # Every run wipes test-results/, so keep this run's traces apart.
+  if [ -d test-results ]; then mv test-results "$RESULTS_DIR/run-$idx-test-results"; fi
 done
-
-# Merge all per-run blobs into a single browsable HTML report (with traces).
-echo
-if ls "$BLOBS_DIR"/*.zip >/dev/null 2>&1; then
-  echo "Merging Playwright reports into $HTML_DIR ..."
-  if PLAYWRIGHT_HTML_OUTPUT_DIR="$HTML_DIR" PLAYWRIGHT_HTML_OPEN=never \
-    npx playwright merge-reports --reporter html "$BLOBS_DIR" \
-    >"$RESULTS_DIR/merge.log" 2>&1; then
-    echo "  HTML report -> $HTML_DIR"
-  else
-    echo "  WARNING: merge-reports failed (see $RESULTS_DIR/merge.log)"
-  fi
-  # Keep only the per-run blob zips (the durable, re-mergeable artifact); drop
-  # the reporter's staging leftovers (report.jsonl, resources/) to trim size.
-  find "$BLOBS_DIR" -mindepth 1 -maxdepth 1 ! -name 'run-*.zip' -exec rm -rf {} +
-else
-  echo "No blob reports to merge."
-fi
 
 echo
 echo "==================================================================="
-# Final aggregation: write summary files, emit CI outputs, and enforce the
-# threshold. This is the last command, so its exit code is the script's:
-# non-zero (threshold breached) fails the CI job; zero passes silently.
-node "$SCRIPT_DIR/aggregate-flakiness.mjs" "$RESULTS_DIR" --write --threshold="$THRESHOLD"
+elixir "$SCRIPT_DIR/../dev/aggregate_e2e_flakiness.exs" "$RESULTS_DIR" --write --threshold="$THRESHOLD"
